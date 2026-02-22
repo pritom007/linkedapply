@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LinkedIn Job → ATS CV Generator</title>
+  <link rel="stylesheet" href="./popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>CV Generator</h1>
+      <p class="subtitle">Generate ATS-friendly resumes & cover letters</p>
+    </header>
+
+    <div id="job-info" class="job-info">
+      <div class="loading">Loading job information...</div>
+    </div>
+
+    <div class="controls">
+      <div class="control-group">
+        <label for="tone">Tone:</label>
+        <select id="tone">
+          <option value="neutral">Neutral</option>
+          <option value="formal">Formal</option>
+        </select>
+      </div>
+
+      <div class="control-group">
+        <label for="emphasis">Emphasis:</label>
+        <select id="emphasis">
+          <option value="none">None</option>
+          <option value="automation">Automation</option>
+          <option value="api">API</option>
+          <option value="performance">Performance</option>
+          <option value="leadership">Leadership</option>
+        </select>
+      </div>
+
+      <div class="control-group">
+        <label for="length">Length:</label>
+        <select id="length">
+          <option value="1-page">1 Page</option>
+          <option value="2-page">2 Pages</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button id="generate-cv" class="btn btn-primary">Generate CV</button>
+      <button id="generate-cover-letter" class="btn btn-secondary">Generate Cover Letter</button>
+    </div>
+
+    <div class="footer">
+      <a href="#" id="options-link">Edit Profile</a>
+    </div>
+  </div>
+
+  <script type="module" src="popup.ts"></script>
+</body>
+</html>

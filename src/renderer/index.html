@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document Preview</title>
+  <link rel="stylesheet" href="./renderer.css">
+</head>
+<body>
+  <div class="toolbar">
+    <button id="download-pdf" class="btn btn-primary">Download PDF</button>
+    <button id="print" class="btn btn-secondary">Print</button>
+    <button id="copy-text" class="btn btn-secondary" style="display: none;">Copy Text</button>
+  </div>
+  
+  <div id="document-container" class="document-container">
+    <div id="document-content" class="document-content">
+      Loading document...
+    </div>
+  </div>
+
+  <script type="module" src="renderer.ts"></script>
+</body>
+</html>

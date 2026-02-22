@@ -1,0 +1,258 @@
+{
+    "name": "Pritom Kumar Mondal",
+    "headline": "Software Development Engineer in Test (SDET) | QA Automation | AI-driven Testing | Python",
+    "contact": {
+      "location": "Dubai, UAE",
+      "relocation": "Open to relocation to Germany",
+      "email": "pritom007@live.com",
+      "phone": "+971524106710",
+      "links": {
+        "portfolio": "https://pritom007.github.io",
+        "github": "https://github.com/pritom007",
+        "linkedin": ""
+      },
+      "workAuthorization": "EU Blue Card eligible",
+      "nationality": "Bangladeshi"
+    },
+  
+    "summaryBase": "Software Development Engineer in Test (SDET) with experience building scalable automation frameworks, AI-powered QA tooling, and CI/CD quality pipelines. Specialized in Python-based automation, cloud-native testing, and intelligent QA systems. Proven ability to reduce manual testing effort and improve release quality through automation and data-driven testing strategies.",
+  
+    "skills": {
+      "testAutomation": [
+        "Selenium",
+        "Appium",
+        "API Testing",
+        "End-to-End Testing",
+        "Regression Testing",
+        "Automation Framework Design"
+      ],
+      "programming": [
+        "Python",
+        "JavaScript",
+        "Flask"
+      ],
+      "ciCdDevOps": [
+        "GitHub Actions",
+        "Docker",
+        "Kubernetes",
+        "CI/CD Pipelines",
+        "AWS Lambda"
+      ],
+      "cloud": [
+        "AWS",
+        "Azure",
+        "Microservices Architecture"
+      ],
+      "aiMl": [
+        "Machine Learning",
+        "NLP",
+        "RAG Architecture",
+        "OpenAI APIs"
+      ],
+      "databases": [
+        "MongoDB",
+        "MySQL",
+        "MSSQL"
+      ],
+      "tools": [
+        "Git",
+        "Linux",
+        "Jira",
+        "REST APIs"
+      ]
+    },
+  
+    "experience": [
+      {
+        "company": "Binance",
+        "title": "Software Development Engineer in Test",
+        "location": "",
+        "startDate": "2022-05",
+        "endDate": null,
+        "highlights": [
+          "Built QaGPT, an AI-powered QA assistant using RAG architecture integrating multiple databases, reducing manual dashboard effort by 90%",
+          "Developed automated PR review system using GitHub Actions, Docker, and OpenAI APIs",
+          "Unified three QA automation platforms into a centralized orchestration system using Flask and AWS Lambda",
+          "Implemented automation testing using Python, Selenium, and Appium reducing execution time by 30%",
+          "Built real-time QA metrics dashboards improving release visibility",
+          "Performed functional, integration, and regression testing for blockchain-based systems"
+        ],
+        "technologies": [
+          "Python",
+          "Selenium",
+          "Appium",
+          "AWS",
+          "Docker",
+          "GitHub Actions",
+          "OpenAI API",
+          "Flask"
+        ]
+      },
+      {
+        "company": "AiFi Inc.",
+        "title": "Software Development Engineer in Test",
+        "location": "",
+        "startDate": "2021-02",
+        "endDate": "2022-04",
+        "highlights": [
+          "Designed automation testing architecture and CI/CD deployment pipelines",
+          "Implemented automated test execution workflows improving release reliability",
+          "Collaborated with developers to validate features and ensure production readiness"
+        ],
+        "technologies": [
+          "Python",
+          "Selenium",
+          "Docker",
+          "Kubernetes",
+          "Azure"
+        ]
+      },
+      {
+        "company": "Nomura",
+        "title": "Machine Learning Intern",
+        "location": "",
+        "startDate": "2020-07",
+        "endDate": "2020-08",
+        "highlights": [
+          "Developed ML-based ranking prediction simulator achieving 78% accuracy",
+          "Built backend pipelines using Python, Flask, and MSSQL"
+        ],
+        "technologies": [
+          "Python",
+          "Machine Learning",
+          "Flask",
+          "MSSQL"
+        ]
+      },
+      {
+        "company": "Guo Yi Xian Technology",
+        "title": "Software Engineer Intern",
+        "startDate": "2018-01",
+        "endDate": "2018-05",
+        "highlights": [
+          "Implemented Dijkstra algorithm improving autonomous forklift routing efficiency",
+          "Developed UI components and contributed to full-stack development"
+        ],
+        "technologies": [
+          "Algorithms",
+          "JavaScript",
+          "Software Engineering"
+        ]
+      },
+      {
+        "company": "Nomura",
+        "title": "Software Engineer Intern",
+        "startDate": "2017-07",
+        "endDate": "2017-10",
+        "highlights": [
+          "Built REST API features and monitoring dashboards",
+          "Developed web interface for database visualization"
+        ],
+        "technologies": [
+          "REST API",
+          "Web Development",
+          "Backend Engineering"
+        ]
+      }
+    ],
+  
+    "education": [
+      {
+        "degree": "Master of Science",
+        "field": "Computer Science and Technology",
+        "institution": "Shanghai Jiao Tong University",
+        "country": "China",
+        "startYear": "2018",
+        "endYear": "2021",
+        "achievements": [
+          "University Scholarship",
+          "Top 5% ranking"
+        ]
+      },
+      {
+        "degree": "Bachelor of Science",
+        "field": "Software Engineering",
+        "institution": "Fudan University",
+        "country": "China",
+        "startYear": "2014",
+        "endYear": "2018",
+        "achievements": [
+          "Chinese Government Scholarship (Type A)"
+        ]
+      }
+    ],
+  
+    "projects": [
+      {
+        "name": "QaGPT",
+        "description": "AI-powered QA assistant using RAG architecture for intelligent testing insights",
+        "technologies": ["Python", "OpenAI API", "RAG", "Automation"]
+      },
+      {
+        "name": "SearchFlow Search Engine",
+        "description": "StackOverflow crawler and search engine using large dataset classification",
+        "technologies": ["Python", "Data Processing", "Search Systems"]
+      },
+      {
+        "name": "Network Traffic Classification",
+        "description": "Machine learning system for network packet classification",
+        "technologies": ["Machine Learning", "Python"]
+      },
+      {
+        "name": "Disease Prediction Using Gene Data",
+        "description": "Comparative ML modeling for disease prediction",
+        "technologies": ["Machine Learning", "Data Science"]
+      }
+    ],
+  
+    "publications": [
+      {
+        "title": "Forecasting News Popularity using BN-LSTM",
+        "publisher": "ACM"
+      }
+    ],
+  
+    "patents": [
+      {
+        "title": "Docker-based Cloud Application Automation Deployment",
+        "status": "Patent Application (China)"
+      }
+    ],
+  
+    "languages": [
+      {
+        "language": "English",
+        "level": "C1"
+      },
+      {
+        "language": "Chinese",
+        "level": "HSK-5"
+      },
+      {
+        "language": "Hindi",
+        "level": "Advanced"
+      },
+      {
+        "language": "Bengali",
+        "level": "Native"
+      }
+    ],
+  
+    "preferences": {
+      "targetRoles": [
+        "Senior SDET",
+        "Software Development Engineer in Test",
+        "QA Automation Engineer",
+        "Test Automation Engineer"
+      ],
+      "targetLocations": [
+        "Germany",
+        "Berlin",
+        "Munich",
+        "Hamburg",
+        "Remote EU"
+      ],
+      "cvLanguage": "English",
+      "maxCvPages": 2
+    }
+  }

@@ -1,0 +1,255 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  background: #f5f5f5;
+}
+
+.toolbar {
+  position: sticky;
+  top: 0;
+  background: white;
+  padding: 12px 20px;
+  border-bottom: 1px solid #ddd;
+  display: flex;
+  gap: 8px;
+  z-index: 100;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btn-primary {
+  background: #0073b1;
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #005885;
+}
+
+.btn-secondary {
+  background: white;
+  color: #333;
+  border: 1px solid #ddd;
+}
+
+.btn-secondary:hover {
+  background: #f5f5f5;
+}
+
+.document-container {
+  display: flex;
+  justify-content: center;
+  padding: 20px;
+}
+
+.document-content {
+  background: white;
+  width: 100%;
+  max-width: 8.5in;
+  min-height: 11in;
+  padding: 0.75in;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* Resume Styles */
+.resume {
+  font-size: 11pt;
+  line-height: 1.5;
+  color: #333;
+}
+
+.resume-header {
+  border-bottom: 2px solid #0073b1;
+  padding-bottom: 12px;
+  margin-bottom: 20px;
+}
+
+.resume-name {
+  font-size: 24pt;
+  font-weight: 700;
+  color: #0073b1;
+  margin-bottom: 4px;
+}
+
+.resume-contact {
+  font-size: 10pt;
+  color: #666;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.resume-contact span {
+  display: flex;
+  align-items: center;
+}
+
+.resume-section {
+  margin-bottom: 20px;
+}
+
+.resume-section-title {
+  font-size: 14pt;
+  font-weight: 700;
+  color: #0073b1;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  border-bottom: 1px solid #e0e0e0;
+  padding-bottom: 4px;
+}
+
+.resume-summary {
+  font-size: 11pt;
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+
+.resume-skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.resume-skill {
+  background: #f5f5f5;
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-size: 10pt;
+}
+
+.resume-experience-item,
+.resume-education-item {
+  margin-bottom: 16px;
+}
+
+.resume-experience-header,
+.resume-education-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+
+.resume-role,
+.resume-degree {
+  font-weight: 600;
+  font-size: 12pt;
+}
+
+.resume-company,
+.resume-institution {
+  font-size: 11pt;
+  color: #666;
+}
+
+.resume-date {
+  font-size: 10pt;
+  color: #666;
+  font-style: italic;
+}
+
+.resume-bullets {
+  list-style: none;
+  padding-left: 0;
+  margin-top: 6px;
+}
+
+.resume-bullets li {
+  position: relative;
+  padding-left: 16px;
+  margin-bottom: 4px;
+  font-size: 10.5pt;
+  line-height: 1.5;
+}
+
+.resume-bullets li::before {
+  content: '•';
+  position: absolute;
+  left: 0;
+  color: #0073b1;
+  font-weight: bold;
+}
+
+.resume-key-achievements {
+  background: #f9f9f9;
+  padding: 12px;
+  border-left: 3px solid #0073b1;
+  margin-bottom: 16px;
+}
+
+.resume-key-achievements-title {
+  font-weight: 600;
+  margin-bottom: 6px;
+  font-size: 11pt;
+}
+
+/* Cover Letter Styles */
+.cover-letter {
+  font-size: 11pt;
+  line-height: 1.6;
+  color: #333;
+}
+
+.cover-letter-header {
+  text-align: right;
+  margin-bottom: 30px;
+  font-size: 10pt;
+  color: #666;
+}
+
+.cover-letter-date {
+  margin-bottom: 8px;
+}
+
+.cover-letter-body {
+  margin-bottom: 20px;
+}
+
+.cover-letter-paragraph {
+  margin-bottom: 16px;
+  text-align: justify;
+}
+
+.cover-letter-signature {
+  margin-top: 30px;
+}
+
+.cover-letter-signature-name {
+  font-weight: 600;
+  margin-top: 8px;
+}
+
+/* Print Styles */
+@media print {
+  body {
+    background: white;
+  }
+
+  .toolbar {
+    display: none;
+  }
+
+  .document-container {
+    padding: 0;
+  }
+
+  .document-content {
+    box-shadow: none;
+    max-width: 100%;
+  }
+}

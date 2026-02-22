@@ -1,0 +1,22 @@
+{
+  "name": "linked-apply",
+  "version": "1.0.0",
+  "description": "Chrome Extension to generate ATS-friendly CVs and cover letters from LinkedIn job postings",
+  "type": "module",
+  "scripts": {
+    "dev": "vite build --watch --mode development",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.268",
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3",
+    "vite": "^7.3.1",
+    "vite-plugin-static-copy": "^3.2.0"
+  },
+  "dependencies": {
+    "jspdf": "^4.2.0",
+    "groq-sdk": "^0.3.0"
+  }
+}
