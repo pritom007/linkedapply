@@ -1,19 +1,81 @@
-import type { TailoredResume } from '../types/index.js';
+import type { TailoredResume, ContactInfo, Experience, Education } from '../types/index.js';
 import { renderResume } from './resume-template.js';
 import { renderCoverLetter } from './cover-letter-template.js';
 
 const urlParams = new URLSearchParams(window.location.search);
 const documentType = urlParams.get('type') || 'resume';
+const requestedTs = Number(urlParams.get('ts') || '0');
+
+/** Normalize stored resume so renderResume never throws (LLM may return skills as object or omit fields). */
+function normalizeResume(data: unknown): TailoredResume {
+  const r = data as Record<string, unknown>;
+  const contact = (r?.contact as ContactInfo) || {};
+  const rawSkills = r?.skills;
+  const skills: string[] = Array.isArray(rawSkills)
+    ? rawSkills.filter((s): s is string => typeof s === 'string')
+    : typeof rawSkills === 'object' && rawSkills !== null
+      ? Object.values(rawSkills).flat().filter((s): s is string => typeof s === 'string')
+      : [];
+  const experience = Array.isArray(r?.experience) ? (r.experience as Experience[]) : [];
+  const education = Array.isArray(r?.education) ? (r.education as Education[]) : [];
+  return {
+    contact: {
+      name: typeof contact.name === 'string' ? contact.name : 'Candidate',
+      location: contact.location,
+      email: contact.email,
+      phone: contact.phone,
+      linkedin: contact.linkedin,
+      github: contact.github,
+      portfolio: contact.portfolio,
+    },
+    summary: typeof r?.summary === 'string' ? r.summary : '',
+    skills,
+    experience,
+    education,
+    projects: Array.isArray(r?.projects) ? r.projects : undefined,
+    certifications: Array.isArray(r?.certifications) ? r.certifications : undefined,
+    languages: Array.isArray(r?.languages) ? r.languages : undefined,
+    keyAchievements: Array.isArray(r?.keyAchievements) ? r.keyAchievements : undefined,
+  };
+}
+
+async function getFreshStorage(maxWaitMs: number = 4000) {
+  const start = Date.now();
+  while (true) {
+    const storage = await chrome.storage.local.get([
+      'currentResume',
+      'currentResumeTs',
+      'currentCoverLetter',
+      'currentCoverLetterTs',
+      'currentJob',
+    ]);
+
+    if (!requestedTs) return storage;
+
+    if (documentType === 'resume') {
+      const ts = Number(storage.currentResumeTs || 0);
+      if (storage.currentResume && ts >= requestedTs) return storage;
+    } else if (documentType === 'cover-letter') {
+      const ts = Number(storage.currentCoverLetterTs || 0);
+      if (storage.currentCoverLetter && ts >= requestedTs) return storage;
+    } else {
+      return storage;
+    }
+
+    if (Date.now() - start > maxWaitMs) return storage;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+}
 
 async function loadDocument() {
   try {
-    const storage = await chrome.storage.local.get(['currentResume', 'currentCoverLetter', 'currentJob']);
+    const storage = await getFreshStorage();
     
     const container = document.getElementById('document-content');
     if (!container) return;
 
     if (documentType === 'resume' && storage.currentResume) {
-      const resume = storage.currentResume as TailoredResume;
+      const resume = normalizeResume(storage.currentResume);
       container.innerHTML = renderResume(resume);
       
       // Show copy button only for cover letters

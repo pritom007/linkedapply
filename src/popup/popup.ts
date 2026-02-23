@@ -16,40 +16,37 @@ async function loadJobData() {
       }
       
       // Try extraction multiple times with increasing delays
-      const maxRetries = 4;
+      const maxRetries = 5;
       for (let attempt = 0; attempt < maxRetries; attempt++) {
         try {
-          // Wait before each attempt (longer for later attempts)
-          await new Promise(resolve => setTimeout(resolve, 1000 + (attempt * 1000)));
-          
+          await new Promise(resolve => setTimeout(resolve, 800 + (attempt * 800)));
           const extractResponse = await chrome.tabs.sendMessage(tab.id!, { type: 'EXTRACT_JOB_DATA' });
-          
+
           if (extractResponse?.success && extractResponse?.data) {
             const jobData = extractResponse.data;
-            // Verify we have essential data
             if (jobData.title && jobData.company && jobData.description && jobData.description.length > 50) {
               currentJob = jobData;
               displayJobInfo(currentJob);
-              return; // Success!
+              return;
             }
           }
         } catch (err) {
           console.log(`Extraction attempt ${attempt + 1} failed:`, err);
-          // Continue to next attempt
         }
       }
-      
-      // If all extraction attempts failed, try stored data
-      console.log('All extraction attempts failed, trying stored data...');
+
+      // On LinkedIn we only show the job we just extracted - never stale stored job
+      displayError('Could not read this job. Try:\n1. Click the job in the list so the right panel updates\n2. Wait 2–3 seconds\n3. Open the extension again');
+      return;
     }
 
-    // Try to get stored job data
+    // Not on LinkedIn: use stored job only as fallback (e.g. after opening from non-LinkedIn tab)
     const response = await chrome.runtime.sendMessage({ type: 'GET_CURRENT_JOB' });
     if (response?.data) {
       currentJob = response.data;
       displayJobInfo(currentJob);
     } else {
-      displayError('No job data found. Please:\n1. Navigate to a LinkedIn job page\n2. Wait for the job details to load (right side panel)\n3. Click the extension icon again');
+      displayError('No job data found. Open a LinkedIn job page, wait for the job details to load, then open the extension.');
     }
   } catch (error) {
     console.error('Failed to load job data:', error);
@@ -109,15 +106,16 @@ async function generateCV() {
     });
 
     if (response?.success) {
-      // Open renderer page with resume data
-      const rendererUrl = chrome.runtime.getURL('renderer/index.html?type=resume');
-      chrome.tabs.create({ url: rendererUrl });
-      
-      // Store resume data temporarily for renderer
-      await chrome.storage.local.set({ 
+      // IMPORTANT: store first, then open renderer (avoids showing stale/previous document)
+      const ts = Date.now();
+      await chrome.storage.local.set({
         currentResume: response.data,
+        currentResumeTs: ts,
         renderType: 'resume',
       });
+
+      const rendererUrl = chrome.runtime.getURL(`renderer/index.html?type=resume&ts=${ts}`);
+      chrome.tabs.create({ url: rendererUrl });
     } else {
       alert('Failed to generate CV: ' + (response?.error || 'Unknown error'));
     }
@@ -148,15 +146,16 @@ async function generateCoverLetter() {
     });
 
     if (response?.success) {
-      // Open renderer page with cover letter data
-      const rendererUrl = chrome.runtime.getURL('renderer/index.html?type=cover-letter');
-      chrome.tabs.create({ url: rendererUrl });
-      
-      // Store cover letter data temporarily for renderer
-      await chrome.storage.local.set({ 
+      // IMPORTANT: store first, then open renderer (avoids showing stale/previous document)
+      const ts = Date.now();
+      await chrome.storage.local.set({
         currentCoverLetter: response.data,
+        currentCoverLetterTs: ts,
         renderType: 'cover-letter',
       });
+
+      const rendererUrl = chrome.runtime.getURL(`renderer/index.html?type=cover-letter&ts=${ts}`);
+      chrome.tabs.create({ url: rendererUrl });
     } else {
       alert('Failed to generate cover letter: ' + (response?.error || 'Unknown error'));
     }

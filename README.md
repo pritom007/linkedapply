@@ -38,6 +38,18 @@ npm run dev
 npm run build
 ```
 
+## Testing
+
+- **Unit tests** (Groq API with mocked fetch):
+  ```bash
+  npm run test
+  ```
+- **Integration tests** (real Groq API; requires `GROQ_API_KEY`):
+  ```bash
+  GROQ_API_KEY=your_key npm run test:integration
+  ```
+- Watch mode: `npm run test:watch`
+
 ## Usage
 
 1. **Set up your profile**:

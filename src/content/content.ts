@@ -12,6 +12,22 @@ interface ExtractedJobData {
   url: string;
 }
 
+function normalizeForCompare(s: string): string {
+  return s.toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+function titlesSimilar(a: string, b: string): boolean {
+  const x = normalizeForCompare(a);
+  const y = normalizeForCompare(b);
+  return x.length > 0 && y.length > 0 && (x.includes(y) || y.includes(x) || x.slice(0, 20) === y.slice(0, 20));
+}
+
+function companiesSimilar(a: string, b: string): boolean {
+  const x = normalizeForCompare(a);
+  const y = normalizeForCompare(b);
+  return x.length > 0 && y.length > 0 && (x.includes(y) || y.includes(x));
+}
+
 // Wait for job detail panel to appear (for feed pages). Prioritizes .jobs-search__job-details--wrapper
 function waitForJobDetailPanel(_jobId: string | null, timeout: number = 8000): Promise<Element | null> {
   return new Promise((resolve) => {
@@ -300,6 +316,26 @@ function extractJobData(): ExtractedJobData | null {
           }
         }
 
+        // Ensure we're not reading a stale panel: if URL has currentJobId, cross-check with the job card
+        if (currentJobId && (title || company)) {
+          const jobCard = document.querySelector(
+            `[data-job-id="${currentJobId}"], [data-entity-urn*="${currentJobId}"]`
+          );
+          if (jobCard) {
+            const cardTitle = jobCard.querySelector(
+              '.job-card-list__title, .base-search-card__title, a[data-test-id="job-title-link"]'
+            )?.textContent?.trim() || '';
+            const cardCompany = jobCard.querySelector(
+              '.job-card-container__company-name, .base-search-card__subtitle'
+            )?.textContent?.trim() || '';
+            const titleMatch = !cardTitle || !title || cardTitle.includes(title) || title.includes(cardTitle) || titlesSimilar(cardTitle, title);
+            const companyMatch = !cardCompany || !company || cardCompany.includes(company) || company.includes(cardCompany) || companiesSimilar(cardCompany, company);
+            if (!titleMatch || !companyMatch) {
+              return null;
+            }
+          }
+        }
+
         // Extract description - this is the most important part
         const descriptionSelectors = [
           '.jobs-description__text',
@@ -555,6 +591,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         const jobData = extractJobData();
+        if (jobData) {
+          // Always sync to background so popup and "Generate CV" use this same job
+          chrome.runtime.sendMessage({
+            type: 'JOB_DATA_EXTRACTED',
+            data: { ...jobData, extractedAt: new Date().toISOString() },
+          }).catch(() => {});
+        }
         sendResponse({ success: !!jobData, data: jobData });
       } catch (error) {
         console.error('Extraction error:', error);
@@ -585,11 +628,19 @@ if (document.readyState === 'loading') {
   delayedExtract();
 }
 
-// Also listen for URL changes (LinkedIn uses SPA navigation)
+// When URL (currentJobId) changes, clear stored job so we never show a previous job
 let lastUrl = location.href;
+let lastJobId: string | null = new URLSearchParams(window.location.search).get('currentJobId');
+
 const urlObserver = new MutationObserver(() => {
   const currentUrl = location.href;
   if (currentUrl !== lastUrl) {
+    const params = new URLSearchParams(new URL(currentUrl).search);
+    const newJobId = params.get('currentJobId');
+    if (lastJobId !== newJobId) {
+      lastJobId = newJobId;
+      chrome.runtime.sendMessage({ type: 'CLEAR_CURRENT_JOB' }).catch(() => {});
+    }
     lastUrl = currentUrl;
     console.log('LinkedIn Job Extractor: URL changed, extracting...', currentUrl);
     setTimeout(extractAndSend, 2000);

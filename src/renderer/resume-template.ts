@@ -1,17 +1,22 @@
 import type { TailoredResume } from '../types/index.js';
 
 export function renderResume(resume: TailoredResume): string {
+  const contact = resume.contact ?? { name: 'Candidate' };
+  const summary = typeof resume.summary === 'string' ? resume.summary : '';
+  const skills = Array.isArray(resume.skills) ? resume.skills : [];
+  const experience = Array.isArray(resume.experience) ? resume.experience : [];
+  const education = Array.isArray(resume.education) ? resume.education : [];
   return `
     <div class="resume">
-      ${renderHeader(resume.contact)}
-      ${renderSummary(resume.summary)}
-      ${resume.keyAchievements ? renderKeyAchievements(resume.keyAchievements) : ''}
-      ${renderSkills(resume.skills)}
-      ${renderExperience(resume.experience)}
-      ${resume.projects && resume.projects.length > 0 ? renderProjects(resume.projects) : ''}
-      ${renderEducation(resume.education)}
-      ${resume.certifications && resume.certifications.length > 0 ? renderCertifications(resume.certifications) : ''}
-      ${resume.languages && resume.languages.length > 0 ? renderLanguages(resume.languages) : ''}
+      ${renderHeader(contact)}
+      ${renderSummary(summary)}
+      ${resume.keyAchievements?.length ? renderKeyAchievements(resume.keyAchievements) : ''}
+      ${renderSkills(skills)}
+      ${renderExperience(experience)}
+      ${resume.projects?.length ? renderProjects(resume.projects) : ''}
+      ${renderEducation(education)}
+      ${resume.certifications?.length ? renderCertifications(resume.certifications) : ''}
+      ${resume.languages?.length ? renderLanguages(resume.languages) : ''}
     </div>
   `;
 }
@@ -69,6 +74,7 @@ function renderSkills(skills: string[]): string {
 }
 
 function renderExperience(experience: TailoredResume['experience']): string {
+  const getBullets = (exp: { bullets?: string[] }) => Array.isArray(exp?.bullets) ? exp.bullets : [];
   return `
     <div class="resume-section">
       <div class="resume-section-title">Experience</div>
@@ -76,13 +82,13 @@ function renderExperience(experience: TailoredResume['experience']): string {
         <div class="resume-experience-item">
           <div class="resume-experience-header">
             <div>
-              <div class="resume-role">${escapeHtml(exp.role)}</div>
-              <div class="resume-company">${escapeHtml(exp.company)}${exp.location ? ` • ${escapeHtml(exp.location)}` : ''}</div>
+              <div class="resume-role">${escapeHtml(exp?.role ?? '')}</div>
+              <div class="resume-company">${escapeHtml(exp?.company ?? '')}${exp?.location ? ` • ${escapeHtml(exp.location)}` : ''}</div>
             </div>
-            <div class="resume-date">${formatDate(exp.startDate)} – ${exp.endDate === 'Present' ? 'Present' : formatDate(exp.endDate)}</div>
+            <div class="resume-date">${formatDate(exp?.startDate ?? '')} – ${exp?.endDate === 'Present' ? 'Present' : formatDate(exp?.endDate ?? '')}</div>
           </div>
           <ul class="resume-bullets">
-            ${exp.bullets.map(bullet => `<li>${escapeHtml(bullet)}</li>`).join('')}
+            ${getBullets(exp).map(bullet => `<li>${escapeHtml(bullet)}</li>`).join('')}
           </ul>
         </div>
       `).join('')}

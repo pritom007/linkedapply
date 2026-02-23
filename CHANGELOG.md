@@ -12,7 +12,7 @@
 
 ### AI-Powered Resume Generation (Groq Integration)
 - ✅ **Added Groq SDK integration** for AI-powered resume and cover letter generation
-- ✅ Uses free Llama 3.1 70B model (`llama-3.1-70b-versatile`)
+- ✅ Uses free Llama 3.1 70B model (`meta-llama/llama-4-scout-17b-16e-instruct`)
 - ✅ API key management in Options page
 - ✅ Automatic fallback to rule-based generation if API key is not set
 - ✅ Improved prompts for better ATS optimization

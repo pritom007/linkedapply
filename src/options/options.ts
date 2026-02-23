@@ -495,6 +495,60 @@ async function handleImport(event: Event) {
   }
 }
 
+function showParseStatus(message: string, type: 'success' | 'error' | '') {
+  const el = document.getElementById('parse-resume-status');
+  if (!el) return;
+  el.textContent = message;
+  el.className = type ? `status-inline ${type}` : 'status-inline';
+}
+
+async function handleResumeFileSelect(event: Event) {
+  const file = (event.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    (document.getElementById('resume-paste') as HTMLTextAreaElement).value = text;
+    showParseStatus('Resume text loaded. Click "Create profile from resume (AI)" to parse.', '');
+  } catch (e) {
+    showParseStatus('Failed to read file.', 'error');
+  }
+  (event.target as HTMLInputElement).value = '';
+}
+
+async function parseResumeWithAI() {
+  const textarea = document.getElementById('resume-paste') as HTMLTextAreaElement;
+  const text = textarea?.value?.trim();
+  if (!text) {
+    showParseStatus('Paste resume text or upload a .txt file first.', 'error');
+    return;
+  }
+
+  showParseStatus('Parsing resume with AI...', '');
+  const btn = document.getElementById('parse-resume-btn');
+  if (btn) (btn as HTMLButtonElement).disabled = true;
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: 'PARSE_RESUME_FROM_TEXT',
+      resumeText: text,
+    });
+    if (response?.success && response?.data) {
+      profileData = response.data as CandidateProfile;
+      populateForm(profileData);
+      await saveProfile();
+      showParseStatus('Profile created from resume! Review and save if needed.', 'success');
+      textarea.value = '';
+    } else {
+      showParseStatus(response?.error ?? 'Failed to parse resume.', 'error');
+    }
+  } catch (error) {
+    console.error('Parse resume error:', error);
+    showParseStatus(typeof error === 'object' && error && 'message' in error ? String((error as Error).message) : 'Failed to parse resume.', 'error');
+  } finally {
+    if (btn) (btn as HTMLButtonElement).disabled = false;
+  }
+}
+
 function showStatus(message: string, type: 'success' | 'error') {
   const statusEl = document.getElementById('status');
   if (!statusEl) return;
@@ -582,6 +636,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('export-profile')?.addEventListener('click', exportProfile);
   document.getElementById('import-profile')?.addEventListener('click', importProfile);
   document.getElementById('import-file')?.addEventListener('change', handleImport);
-  
+
+  document.getElementById('resume-file')?.addEventListener('change', handleResumeFileSelect);
+  document.getElementById('parse-resume-btn')?.addEventListener('click', parseResumeWithAI);
+
   document.getElementById('save-api-key')?.addEventListener('click', saveApiKey);
 });

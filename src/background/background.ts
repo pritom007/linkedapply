@@ -1,31 +1,46 @@
 // Background service worker for state management
 
 import type { JobData, CandidateProfile, TailoredResume, GenerationOptions } from '../types/index.js';
+import { callGroqAPI } from './groq-api.js';
 
-// Use fetch API directly for Groq (more reliable in service workers)
-async function callGroqAPI(messages: Array<{ role: string; content: string }>, apiKey: string, model: string = 'llama-3.1-70b-versatile') {
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature: 0.7,
-      max_tokens: 4096,
-      top_p: 1,
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Groq API error: ${response.status} - ${error}`);
+function stripCodeFences(s: string): string {
+  let out = s.trim();
+  if (out.startsWith('```')) {
+    out = out.replace(/^```[a-zA-Z0-9_-]*\n?/, '').replace(/```$/m, '').trim();
   }
+  return out;
+}
 
-  const data = await response.json();
-  return data.choices[0]?.message?.content || '';
+function extractFirstJsonObject(text: string): string | null {
+  const s = stripCodeFences(text);
+  const start = s.indexOf('{');
+  if (start === -1) return null;
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = start; i < s.length; i++) {
+    const ch = s[i];
+    if (inString) {
+      if (escape) {
+        escape = false;
+      } else if (ch === '\\') {
+        escape = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+    if (ch === '{') depth++;
+    if (ch === '}') {
+      depth--;
+      if (depth === 0) return s.slice(start, i + 1);
+    }
+  }
+  return null;
 }
 
 interface StoredJobData extends JobData {
@@ -106,6 +121,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'CLEAR_CURRENT_JOB') {
+    chrome.storage.local.remove('currentJob').then(() => {
+      sendResponse({ success: true });
+    });
+    return true;
+  }
+
   if (message.type === 'GET_PROFILE') {
     chrome.storage.local.get('candidateProfile').then(result => {
       sendResponse({ data: result.candidateProfile || DEFAULT_PROFILE });
@@ -148,6 +170,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'PARSE_RESUME_FROM_TEXT') {
+    handleParseResumeFromText(message.resumeText)
+      .then(profile => sendResponse({ success: true, data: profile }))
+      .catch(error => sendResponse({ success: false, error: error?.message ?? String(error) }));
+    return true;
+  }
+
   return false;
 });
 
@@ -166,12 +195,11 @@ async function handleGenerateResume(options: GenerationOptions): Promise<Tailore
     throw new Error('No job data found. Please navigate to a LinkedIn job page.');
   }
 
-  // Use Groq if API key is available, otherwise fall back to rule-based
-  if (apiKey) {
-    return await tailorResumeWithGroq(profile, jobData, options, apiKey);
-  } else {
-    return tailorResume(profile, jobData, options);
+  if (!apiKey) {
+    throw new Error('Groq API key required for ATS-optimized CV. Add your key in Edit Profile → API Configuration (get a free key at console.groq.com).');
   }
+
+  return await tailorResumeWithGroq(profile, jobData, options, apiKey);
 }
 
 async function handleGenerateCoverLetter(options: GenerationOptions): Promise<string> {
@@ -189,12 +217,97 @@ async function handleGenerateCoverLetter(options: GenerationOptions): Promise<st
     throw new Error('No job data found. Please navigate to a LinkedIn job page.');
   }
 
-  // Use Groq if API key is available, otherwise fall back to rule-based
-  if (apiKey) {
-    return await tailorCoverLetterWithGroq(profile, jobData, options, apiKey);
-  } else {
-    return tailorCoverLetter(profile, jobData, options);
+  if (!apiKey) {
+    throw new Error('Groq API key required for AI-generated cover letter. Add your key in Edit Profile → API Configuration (get a free key at console.groq.com).');
   }
+
+  return await tailorCoverLetterWithGroq(profile, jobData, options, apiKey);
+}
+
+async function handleParseResumeFromText(resumeText: string): Promise<CandidateProfile> {
+  const result = await chrome.storage.local.get('groqApiKey');
+  const apiKey = result.groqApiKey as string | undefined;
+  if (!apiKey?.trim()) {
+    throw new Error('Groq API key required. Add your key in API Configuration above.');
+  }
+  return parseResumeWithGroq(resumeText.trim(), apiKey);
+}
+
+async function parseResumeWithGroq(resumeText: string, apiKey: string): Promise<CandidateProfile> {
+  const truncated = resumeText.length > 12000 ? resumeText.substring(0, 12000) + '\n...[truncated]' : resumeText;
+  const prompt = `You are an expert at extracting structured data from resumes. Parse the following resume text and return a single JSON object with this exact structure. Extract all information you can find. Use empty arrays or omit optional fields when not present.
+
+Required JSON structure (use these keys exactly):
+{
+  "contact": {
+    "name": "string (required)",
+    "location": "string or omit",
+    "email": "string or omit",
+    "phone": "string or omit",
+    "linkedin": "string or omit",
+    "github": "string or omit",
+    "portfolio": "string or omit"
+  },
+  "summary": "string (professional summary)",
+  "skills": {
+    "CategoryName": ["skill1", "skill2"],
+    "AnotherCategory": ["skillA", "skillB"]
+  },
+  "experience": [
+    {
+      "company": "string",
+      "role": "string",
+      "location": "string or omit",
+      "startDate": "string e.g. Jan 2021",
+      "endDate": "string or Present",
+      "bullets": ["achievement or responsibility", "..."]
+    }
+  ],
+  "education": [
+    {
+      "institution": "string",
+      "degree": "string",
+      "field": "string or omit",
+      "startDate": "string",
+      "endDate": "string",
+      "gpa": "string or omit"
+    }
+  ],
+  "projects": [{"name": "string", "description": "string", "technologies": ["string"], "url": "string or omit"}],
+  "certifications": [{"name": "string", "issuer": "string", "date": "string", "expiryDate": "string or omit", "credentialId": "string or omit"}],
+  "languages": [{"language": "string", "proficiency": "string e.g. Native, Fluent"}]
+}
+
+Resume text:
+---
+${truncated}
+---
+
+Return ONLY valid JSON. No markdown, no code fence, no explanation.`;
+
+  const responseText = await callGroqAPI(
+    [{ role: 'user', content: prompt }],
+    apiKey,
+    'meta-llama/llama-4-scout-17b-16e-instruct',
+    { temperature: 0.3, max_tokens: 4096 }
+  );
+  const jsonText = extractFirstJsonObject(responseText) ?? stripCodeFences(responseText);
+  const parsed = JSON.parse(jsonText) as Record<string, unknown>;
+  const contact = (parsed.contact as CandidateProfile['contact']) ?? {};
+  if (!contact.name) contact.name = 'Candidate';
+  const profile: CandidateProfile = {
+    contact,
+    summary: typeof parsed.summary === 'string' ? parsed.summary : '',
+    skills: typeof parsed.skills === 'object' && parsed.skills !== null && !Array.isArray(parsed.skills)
+      ? (parsed.skills as Record<string, string[]>)
+      : { Other: [] },
+    experience: Array.isArray(parsed.experience) ? (parsed.experience as CandidateProfile['experience']) : [],
+    education: Array.isArray(parsed.education) ? (parsed.education as CandidateProfile['education']) : [],
+    projects: Array.isArray(parsed.projects) ? (parsed.projects as CandidateProfile['projects']) : undefined,
+    certifications: Array.isArray(parsed.certifications) ? (parsed.certifications as CandidateProfile['certifications']) : undefined,
+    languages: Array.isArray(parsed.languages) ? (parsed.languages as CandidateProfile['languages']) : undefined,
+  };
+  return profile;
 }
 
 function tailorResume(
@@ -399,7 +512,7 @@ function generateCoverLetterClosing(
   tone: string
 ): string {
   const closing = tone === 'formal' 
-    ? 'I look forward to the opportunity to discuss how my experience aligns with your needs.\n\nSincerely,\n' + profile.contact.name
+    ? 'I look forward to the opportunity to discuss how my experience aligns with your needs.\n\nSincerely,\n\n' + profile.contact.name
     : 'I\'d love to discuss how I can contribute to your team.\n\nBest regards,\n' + profile.contact.name;
   
   return closing;
@@ -412,82 +525,78 @@ async function tailorResumeWithGroq(
   apiKey: string
 ): Promise<TailoredResume> {
   try {
-    // Prepare profile data as JSON string
     const profileJson = JSON.stringify(profile, null, 2);
-    
-    const prompt = `You are an expert ATS (Applicant Tracking System) resume optimizer. Generate a tailored resume based on the candidate's profile and job description.
+    const jdText = job.description.length > 6000 ? job.description.substring(0, 6000) + '...' : job.description;
+
+    const prompt = `You are an expert ATS (Applicant Tracking System) resume optimizer. Your task is to optimize the candidate's CV using the JOB DESCRIPTION so that when an ATS scans the resume, it finds all necessary keywords and requirements.
+
+STEP 1 - Analyze the job description: Identify required skills, technologies, qualifications, action verbs, and phrases that ATS systems typically match on.
+
+STEP 2 - Optimize the CV: Rewrite the candidate's content so those keywords appear naturally in:
+- Summary: Weave in key terms from the JD (role title, must-have skills, industry terms). Keep 5-6 lines.
+- Skills: List skills with JD-matching terms first; include synonyms and tools mentioned in the JD that the candidate has.
+- Experience bullets: Rephrase each bullet to include relevant JD keywords and action verbs. Do NOT invent employers, dates, or achievements—only rephrase and align existing facts.
+- Key achievements (if applicable): Pull 2-3 quantifiable bullets that best match the JD.
+STEP 3 - Consider location and formatting:
+- Based on the Job description location, try to fit in candidate's cv. For example, if the job description is for a location in Germany , and the candidate's cv is for a location in UAE , and job descripton needs info about visa status, then since the Candidate qualify for EU blue card/job Vacancy visa, you can mention it.
+- Consider CV formatting: if the job description is for a location in Germany the make the CV format according that location.
+RULES:
+- All information must remain 100% factual. No fake jobs, dates, or accomplishments.
+- Preserve contact, education, projects, certifications, languages from the profile.
+- Output valid JSON only.
 
 CANDIDATE PROFILE (JSON):
 ${profileJson}
 
-JOB POSTING:
+JOB DESCRIPTION (use this to extract keywords and optimize the CV):
 Title: ${job.title}
 Company: ${job.company}
 Location: ${job.location}
-Description: ${job.description.substring(0, 2000)}${job.description.length > 2000 ? '...' : ''}
 
-GENERATION OPTIONS:
-- Tone: ${options.tone}
-- Emphasis: ${options.emphasis}
-- Length: ${options.length}
+${jdText}
 
-REQUIREMENTS:
-1. Generate an ATS-friendly resume that matches the job description
-2. Reorder and emphasize skills that match the job requirements
-3. Rewrite experience bullets to align with job keywords (DO NOT invent fake experiences - only rephrase existing ones)
-4. Create a tailored summary (5-6 lines) that highlights relevant experience
-5. Extract key achievements if applicable
-6. Keep all information factual - do not add fake employers, dates, or achievements
-7. Output format: Valid JSON matching this structure:
-{
-  "contact": { "name": "...", "location": "...", "email": "...", "phone": "...", "linkedin": "...", "github": "...", "portfolio": "..." },
-  "summary": "...",
-  "skills": ["skill1", "skill2", ...],
-  "experience": [
-    {
-      "company": "...",
-      "role": "...",
-      "location": "...",
-      "startDate": "...",
-      "endDate": "...",
-      "bullets": ["bullet1", "bullet2", ...]
-    }
-  ],
-  "projects": [...],
-  "education": [...],
-  "certifications": [...],
-  "languages": [...],
-  "keyAchievements": ["achievement1", "achievement2", ...]
-}
-
-Return ONLY valid JSON, no markdown, no code blocks, no explanations.`;
+OUTPUT: Valid JSON with this exact structure (no markdown, no code fence):
+{"contact":{...},"summary":"...","skills":[],"experience":[],"projects":[],"education":[],"certifications":[],"languages":[],"keyAchievements":[]}`;
 
     const responseText = await callGroqAPI(
       [{ role: 'user', content: prompt }],
       apiKey,
-      'llama-3.1-70b-versatile'
+      'meta-llama/llama-4-scout-17b-16e-instruct'
     );
-    
-    // Parse JSON response (remove markdown code blocks if present)
-    let jsonText = responseText.trim();
-    if (jsonText.startsWith('```json')) {
-      jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
-    } else if (jsonText.startsWith('```')) {
-      jsonText = jsonText.replace(/```\n?/g, '');
-    }
-    
+
+    const jsonText = extractFirstJsonObject(responseText) ?? stripCodeFences(responseText);
     const tailoredResume = JSON.parse(jsonText) as TailoredResume;
-    
-    // Ensure contact info is preserved
     tailoredResume.contact = profile.contact;
-    
     return tailoredResume;
   } catch (error: any) {
-    console.error('Groq API error:', error);
-    // Fall back to rule-based generation
-    console.log('Falling back to rule-based generation');
-    return tailorResume(profile, job, options);
+    console.error('Groq resume generation error:', error);
+    const msg = typeof error?.message === 'string' ? error.message : String(error);
+    throw new Error(`Groq resume generation failed. ${msg}`);
   }
+}
+
+// Build a plain-text CV summary from profile (for cover letter context)
+function profileToCvText(profile: CandidateProfile): string {
+  const lines: string[] = [];
+  lines.push(`Name: ${profile.contact.name}`);
+  lines.push(`Summary: ${profile.summary}`);
+  lines.push('Skills: ' + Object.values(profile.skills).flat().join(', '));
+  lines.push('Experience:');
+  profile.experience.forEach(exp => {
+    lines.push(`  ${exp.role} at ${exp.company} (${exp.startDate} – ${exp.endDate})`);
+    exp.bullets.forEach(b => lines.push(`  - ${b}`));
+  });
+  if (profile.education?.length) {
+    lines.push('Education:');
+    profile.education.forEach(edu => {
+      lines.push(`  ${edu.degree}${edu.field ? ` in ${edu.field}` : ''}, ${edu.institution}`);
+    });
+  }
+  if (profile.projects?.length) {
+    lines.push('Projects:');
+    profile.projects.forEach(p => lines.push(`  ${p.name}: ${p.description}`));
+  }
+  return lines.join('\n');
 }
 
 async function tailorCoverLetterWithGroq(
@@ -497,52 +606,53 @@ async function tailorCoverLetterWithGroq(
   apiKey: string
 ): Promise<string> {
   try {
-    const prompt = `You are an expert cover letter writer. Generate a tailored cover letter based on the candidate's profile and job description.
+    const cvText = profileToCvText(profile);
+    const jdText = job.description.length > 4000 ? job.description.substring(0, 4000) + '...' : job.description;
+    const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
-CANDIDATE PROFILE:
-Name: ${profile.contact.name}
-Summary: ${profile.summary}
-Most Recent Role: ${profile.experience[0]?.role || 'N/A'} at ${profile.experience[0]?.company || 'N/A'}
-Key Skills: ${Object.values(profile.skills).flat().slice(0, 10).join(', ')}
+    const prompt = `You are an expert cover letter writer. Write a cover letter based ONLY on the JOB DESCRIPTION and the candidate's CV below. The letter must reflect the date it is generated.
 
-JOB POSTING:
+TODAY'S DATE (use this as the date of the letter): ${today}
+
+CANDIDATE'S CV (use this as the only source of facts about the candidate):
+${cvText}
+
+JOB DESCRIPTION:
 Title: ${job.title}
 Company: ${job.company}
 Location: ${job.location}
-Description: ${job.description.substring(0, 2000)}${job.description.length > 2000 ? '...' : ''}
 
-GENERATION OPTIONS:
-- Tone: ${options.tone === 'formal' ? 'Formal and professional' : 'Professional but friendly'}
-- Emphasis: ${options.emphasis}
+${jdText}
 
-REQUIREMENTS:
-1. Write a compelling cover letter (3-4 paragraphs)
-2. Address the hiring manager professionally
-3. Highlight relevant experience and skills from the candidate's profile
-4. Show enthusiasm for the role and company
-5. Keep it factual - only mention real experiences from the profile
-6. Match the tone specified
-7. End with a professional closing and the candidate's name
+INSTRUCTIONS:
+1. Write a 2-3 paragraph cover letter that ties the candidate's CV to this specific role and company.
+2. Use the exact date above at the top of the letter (e.g. "February 19, 2026" or "19 February 2026").
+3. Address the hiring manager professionally. Open with the date, then greeting, then body.
+4. In the body: reference specific skills and achievements from the CV that match the JD; show you understand the role; keep everything factual—only mention what is in the CV.
+5. Tone: ${options.tone === 'formal' ? 'Formal and professional' : 'Professional but friendly'}.
+6. End with a professional closing: write the word "Sincerely," on its own line, then a blank line, then on the next line write only the candidate's full name (${profile.contact.name}). So the last lines must be exactly: Sincerely, [blank line] [full name on new line].
+7. Return ONLY the raw cover letter text. No markdown, no code blocks, no labels.`;
 
-Return the cover letter text only, no markdown formatting, no code blocks.`;
-
-    const coverLetter = await callGroqAPI(
+    let coverLetter = await callGroqAPI(
       [{ role: 'user', content: prompt }],
       apiKey,
-      'llama-3.1-70b-versatile'
+      'meta-llama/llama-4-scout-17b-16e-instruct'
     );
-    
-    // Clean up response (remove markdown if present)
-    let cleaned = coverLetter.trim();
-    if (cleaned.startsWith('```')) {
-      cleaned = cleaned.replace(/```[a-z]*\n?/g, '').replace(/```\n?/g, '');
+    coverLetter = stripCodeFences(coverLetter);
+    // Ensure "Sincerely," then blank line, then name on its own line
+    const name = profile.contact.name;
+    const sincerelyCommaName = `Sincerely, ${name}`;
+    const bestRegardsName = `Best regards, ${name}`;
+    if (coverLetter.endsWith(sincerelyCommaName) && !coverLetter.endsWith(`Sincerely,\n\n${name}`)) {
+      coverLetter = coverLetter.slice(0, -sincerelyCommaName.length) + `Sincerely,\n\n${name}`;
+    } else if (coverLetter.endsWith(bestRegardsName) && !coverLetter.endsWith(`Best regards,\n\n${name}`)) {
+      coverLetter = coverLetter.slice(0, -bestRegardsName.length) + `Best regards,\n\n${name}`;
     }
     
-    return cleaned;
+    return coverLetter;
   } catch (error: any) {
-    console.error('Groq API error:', error);
-    // Fall back to rule-based generation
-    console.log('Falling back to rule-based generation');
-    return tailorCoverLetter(profile, job, options);
+    console.error('Groq cover letter generation error:', error);
+    const msg = typeof error?.message === 'string' ? error.message : String(error);
+    throw new Error(`Groq cover letter generation failed. ${msg}`);
   }
 }

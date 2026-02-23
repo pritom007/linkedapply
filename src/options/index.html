@@ -15,6 +15,20 @@
 
     <div id="status" class="status"></div>
 
+    <section class="form-section" style="background: #e8f5e9; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+      <h2>Import profile from resume (AI)</h2>
+      <p class="subtitle" style="margin-bottom: 12px;">Upload a resume (.txt) or paste text below. Groq will extract your profile and fill the form.</p>
+      <div class="form-group">
+        <input type="file" id="resume-file" accept=".txt,text/plain" style="margin-bottom: 8px;">
+      </div>
+      <div class="form-group">
+        <label for="resume-paste">Or paste resume text</label>
+        <textarea id="resume-paste" rows="6" placeholder="Paste your resume text here (or upload a .txt file above)..."></textarea>
+      </div>
+      <button type="button" id="parse-resume-btn" class="btn btn-primary">Create profile from resume (AI)</button>
+      <p id="parse-resume-status" class="status-inline"></p>
+    </section>
+
     <section class="form-section" style="background: #f0f7fa; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
       <h2>API Configuration</h2>
       <div class="form-group">
