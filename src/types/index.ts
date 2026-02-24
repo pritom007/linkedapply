@@ -10,6 +10,28 @@ export interface JobData {
   extractedAt: string;
 }
 
+export type GeneratedDocumentType = 'resume' | 'cover-letter';
+
+export type GenerationMode = 'auto' | 'ai' | 'local';
+
+export interface TailoredDocumentSummary {
+  id: string;
+  type: GeneratedDocumentType;
+  jobTitle: string;
+  jobCompany?: string;
+  generatedAt: string;
+  mode: Exclude<GenerationMode, 'auto'>;
+  length?: '1-page' | '2-page';
+}
+
+export type JobExtractionState = 'idle' | 'extracting' | 'ready' | 'error';
+
+export interface JobExtractionStatus {
+  state: JobExtractionState;
+  lastUpdated: string;
+  message?: string;
+}
+
 export interface ContactInfo {
   name: string;
   location?: string;
@@ -80,6 +102,7 @@ export interface GenerationOptions {
   tone: 'formal' | 'neutral';
   emphasis: 'automation' | 'api' | 'performance' | 'leadership' | 'none';
   length: '1-page' | '2-page';
+   mode?: GenerationMode;
 }
 
 export interface TailoredResume {

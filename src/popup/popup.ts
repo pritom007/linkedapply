@@ -1,10 +1,25 @@
-import type { JobData, GenerationOptions } from '../types/index.js';
+import type { JobData, GenerationOptions, JobExtractionStatus } from '../types/index.js';
 
 let currentJob: JobData | null = null;
+
+function showStatus(message: string, type: 'info' | 'error') {
+  const el = document.getElementById('status-bar');
+  if (!el) return;
+  el.textContent = message;
+  el.className = `status-bar ${type}`;
+  el.hidden = false;
+}
+
+function clearStatus() {
+  const el = document.getElementById('status-bar');
+  if (!el) return;
+  el.hidden = true;
+}
 
 // Load current job data
 async function loadJobData() {
   try {
+    clearStatus();
     // First, try to extract job data from current tab if on LinkedIn
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab.url?.includes('linkedin.com/jobs/')) {
@@ -36,21 +51,34 @@ async function loadJobData() {
       }
 
       // On LinkedIn we only show the job we just extracted - never stale stored job
-      displayError('Could not read this job. Try:\n1. Click the job in the list so the right panel updates\n2. Wait 2–3 seconds\n3. Open the extension again');
+      displayError('Could not read this job. Try: 1) Click the job in the list so the right panel updates, 2) Wait 2–3 seconds, 3) Open the extension again.');
       return;
     }
 
     // Not on LinkedIn: use stored job only as fallback (e.g. after opening from non-LinkedIn tab)
-    const response = await chrome.runtime.sendMessage({ type: 'GET_CURRENT_JOB' });
-    if (response?.data) {
-      currentJob = response.data;
+    const [jobResponse, statusResult] = await Promise.all([
+      chrome.runtime.sendMessage({ type: 'GET_CURRENT_JOB' }),
+      chrome.storage.local.get('jobExtractionStatus'),
+    ]);
+
+    const status = statusResult.jobExtractionStatus as JobExtractionStatus | undefined;
+
+    if (jobResponse?.data) {
+      currentJob = jobResponse.data;
       displayJobInfo(currentJob);
+      if (status?.state === 'ready') {
+        showStatus(status.message ?? 'Job detected from LinkedIn.', 'info');
+      }
     } else {
       displayError('No job data found. Open a LinkedIn job page, wait for the job details to load, then open the extension.');
+      if (status?.state === 'error' && status.message) {
+        showStatus(status.message, 'error');
+      }
     }
   } catch (error) {
     console.error('Failed to load job data:', error);
     displayError('Failed to load job information. Make sure you are on a LinkedIn job page.');
+    showStatus('Could not load job data from the active tab.', 'error');
   }
 }
 
@@ -105,19 +133,15 @@ async function generateCV() {
       options,
     });
 
-    if (response?.success) {
-      // IMPORTANT: store first, then open renderer (avoids showing stale/previous document)
-      const ts = Date.now();
-      await chrome.storage.local.set({
-        currentResume: response.data,
-        currentResumeTs: ts,
-        renderType: 'resume',
-      });
-
+    if (response?.ok) {
+      const { ts } = response.data as { ts: number };
       const rendererUrl = chrome.runtime.getURL(`renderer/index.html?type=resume&ts=${ts}`);
       chrome.tabs.create({ url: rendererUrl });
     } else {
-      alert('Failed to generate CV: ' + (response?.error || 'Unknown error'));
+      const message =
+        (response && typeof response.message === 'string' && response.message) ||
+        'Unknown error';
+      alert('Failed to generate CV: ' + message);
     }
   } catch (error) {
     console.error('Error generating CV:', error);
@@ -145,19 +169,15 @@ async function generateCoverLetter() {
       options,
     });
 
-    if (response?.success) {
-      // IMPORTANT: store first, then open renderer (avoids showing stale/previous document)
-      const ts = Date.now();
-      await chrome.storage.local.set({
-        currentCoverLetter: response.data,
-        currentCoverLetterTs: ts,
-        renderType: 'cover-letter',
-      });
-
+    if (response?.ok) {
+      const { ts } = response.data as { ts: number };
       const rendererUrl = chrome.runtime.getURL(`renderer/index.html?type=cover-letter&ts=${ts}`);
       chrome.tabs.create({ url: rendererUrl });
     } else {
-      alert('Failed to generate cover letter: ' + (response?.error || 'Unknown error'));
+      const message =
+        (response && typeof response.message === 'string' && response.message) ||
+        'Unknown error';
+      alert('Failed to generate cover letter: ' + message);
     }
   } catch (error) {
     console.error('Error generating cover letter:', error);

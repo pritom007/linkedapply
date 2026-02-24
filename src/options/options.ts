@@ -18,8 +18,20 @@ async function loadProfile() {
 async function loadApiKey() {
   try {
     const response = await chrome.runtime.sendMessage({ type: 'GET_GROQ_API_KEY' });
-    if (response?.apiKey) {
-      (document.getElementById('groq-api-key') as HTMLInputElement).value = response.apiKey;
+    const input = document.getElementById('groq-api-key') as HTMLInputElement | null;
+    const statusEl = document.getElementById('groq-api-status');
+    const apiKey = response?.apiKey ?? null;
+    if (input && typeof apiKey === 'string') {
+      input.value = apiKey;
+    }
+    if (statusEl) {
+      if (apiKey) {
+        statusEl.textContent = 'AI mode enabled. Resume and cover letters will use Groq when possible.';
+        statusEl.className = 'status-inline success';
+      } else {
+        statusEl.textContent = 'No API key saved. The extension will use local tailoring only (no external API calls).';
+        statusEl.className = 'status-inline';
+      }
     }
   } catch (error) {
     console.error('Failed to load API key:', error);
@@ -33,7 +45,17 @@ async function saveApiKey() {
       type: 'SAVE_GROQ_API_KEY',
       apiKey: apiKey || null,
     });
+    const statusEl = document.getElementById('groq-api-status');
     if (response?.success) {
+      if (statusEl) {
+        if (apiKey) {
+          statusEl.textContent = 'AI mode enabled. Resume and cover letters will use Groq when possible.';
+          statusEl.className = 'status-inline success';
+        } else {
+          statusEl.textContent = 'API key removed. The extension will now use local tailoring only.';
+          statusEl.className = 'status-inline';
+        }
+      }
       showStatus(apiKey ? 'API key saved successfully!' : 'API key removed', 'success');
     } else {
       showStatus('Failed to save API key', 'error');
@@ -532,14 +554,17 @@ async function parseResumeWithAI() {
       type: 'PARSE_RESUME_FROM_TEXT',
       resumeText: text,
     });
-    if (response?.success && response?.data) {
+    if (response?.ok) {
       profileData = response.data as CandidateProfile;
       populateForm(profileData);
       await saveProfile();
       showParseStatus('Profile created from resume! Review and save if needed.', 'success');
       textarea.value = '';
     } else {
-      showParseStatus(response?.error ?? 'Failed to parse resume.', 'error');
+      const message =
+        (response && typeof response.message === 'string' && response.message) ||
+        'Failed to parse resume.';
+      showParseStatus(message, 'error');
     }
   } catch (error) {
     console.error('Parse resume error:', error);

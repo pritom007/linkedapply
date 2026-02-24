@@ -1,4 +1,4 @@
-import type { TailoredResume, ContactInfo, Experience, Education } from '../types/index.js';
+import type { TailoredResume, ContactInfo, Experience, Education, TailoredDocumentSummary } from '../types/index.js';
 import { renderResume } from './resume-template.js';
 import { renderCoverLetter } from './cover-letter-template.js';
 
@@ -48,6 +48,7 @@ async function getFreshStorage(maxWaitMs: number = 4000) {
       'currentCoverLetter',
       'currentCoverLetterTs',
       'currentJob',
+      'lastDocumentMeta',
     ]);
 
     if (!requestedTs) return storage;
@@ -73,6 +74,14 @@ async function loadDocument() {
     
     const container = document.getElementById('document-content');
     if (!container) return;
+
+    const meta = storage.lastDocumentMeta as TailoredDocumentSummary | undefined;
+    const root = document.getElementById('root');
+    if (root && meta?.length === '1-page') {
+      root.classList.add('layout-one-page');
+    } else if (root && meta?.length === '2-page') {
+      root.classList.add('layout-two-page');
+    }
 
     if (documentType === 'resume' && storage.currentResume) {
       const resume = normalizeResume(storage.currentResume);

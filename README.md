@@ -1,6 +1,6 @@
-# LinkedIn Job → ATS-Friendly CV & Cover Letter Generator
+# LinkedApply AI – ATS CV & Cover Letter Generator
 
-A Chrome Extension that extracts job information from LinkedIn job postings and generates ATS-friendly, tailored CVs and cover letters.
+LinkedApply AI is a Chrome extension that turns any LinkedIn job posting into a tailored, ATS-friendly CV and cover letter in seconds.
 
 ## Features
 
@@ -11,7 +11,7 @@ A Chrome Extension that extracts job information from LinkedIn job postings and 
 - **PDF Export**: Generate PDFs directly from the browser
 - **Profile Management**: Comprehensive profile editor with import/export functionality
 
-## Installation
+## Installation (development build)
 
 1. Clone this repository
 2. Install dependencies:
@@ -96,6 +96,13 @@ The generated documents follow ATS best practices:
 - Chrome Extension Manifest V3
 - HTML/CSS for templates
 - Browser Print API for PDF generation
+
+## Support / Buy Me a Coffee
+
+This extension is free to use. If it saves you time or helps you land interviews and you’d like to support development:
+
+- You can add your own Buy Me a Coffee link (or similar) by updating the placeholder link in the popup footer.
+- Example: `https://www.buymeacoffee.com/your-handle`
 
 ## License
 

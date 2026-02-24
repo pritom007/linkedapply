@@ -1,13 +1,19 @@
 {
   "manifest_version": 3,
-  "name": "LinkedIn Job → ATS CV Generator",
-  "version": "1.0.0",
-  "description": "Generate ATS-friendly CVs and cover letters from LinkedIn job postings",
+  "name": "LinkedApply AI – ATS CV & Cover Letters",
+  "short_name": "LinkedApply AI",
+  "version": "1.0.1",
+  "description": "Turn any LinkedIn job into a tailored, ATS-optimized CV and cover letter in seconds.",
   "permissions": [
     "storage",
     "activeTab",
     "scripting"
   ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "host_permissions": [
     "https://www.linkedin.com/*",
     "https://api.groq.com/*"

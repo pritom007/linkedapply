@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { callGroqAPI } from './groq-api.js';
+import { stripCodeFences, extractFirstJsonObject } from './json-utils.js';
 
 describe('callGroqAPI', () => {
   const originalFetch = globalThis.fetch;
@@ -41,7 +42,8 @@ describe('callGroqAPI', () => {
       }
     );
 
-    const body = JSON.parse(mockFetch.mock.calls[0][1].body as string);
+    const callArgs = mockFetch.mock.calls[0];
+    const body = JSON.parse((callArgs?.[1] as any)?.body as string);
     expect(body).toMatchObject({
       model: 'meta-llama/llama-4-scout-17b-16e-instruct',
       messages: [{ role: 'user', content: 'Say hello' }],
@@ -69,7 +71,8 @@ describe('callGroqAPI', () => {
       'llama-3.2-90b-preview'
     );
 
-    const body = JSON.parse(mockFetch.mock.calls[0][1].body as string);
+    const callArgs = mockFetch.mock.calls[0];
+    const body = JSON.parse((callArgs?.[1] as any)?.body as string);
     expect(body.model).toBe('llama-3.2-90b-preview');
   });
 
@@ -131,8 +134,20 @@ describe('callGroqAPI', () => {
       { temperature: 0.3, max_tokens: 2048 }
     );
 
-    const body = JSON.parse(mockFetch.mock.calls[0][1].body as string);
+    const callArgs = mockFetch.mock.calls[0];
+    const body = JSON.parse((callArgs?.[1] as any)?.body as string);
     expect(body.temperature).toBe(0.3);
     expect(body.max_tokens).toBe(2048);
+  });
+
+  it('stripCodeFences removes markdown fences when present', () => {
+    const input = '```json\n{"a":1}\n```';
+    expect(stripCodeFences(input)).toBe('{"a":1}');
+  });
+
+  it('extractFirstJsonObject returns first JSON object in text', () => {
+    const input = 'noise before { "a": { "b": 2 } } trailing text';
+    const json = extractFirstJsonObject(input);
+    expect(json).toBe('{ "a": { "b": 2 } }');
   });
 });

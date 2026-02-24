@@ -3,19 +3,26 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LinkedIn Job → ATS CV Generator</title>
+  <title>LinkedApply AI – ATS CV & Cover Letters</title>
   <link rel="stylesheet" href="./popup.css">
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>CV Generator</h1>
-      <p class="subtitle">Generate ATS-friendly resumes & cover letters</p>
+      <div class="brand">
+        <div class="brand-logo">LA</div>
+        <div class="brand-text">
+          <h1>LinkedApply AI</h1>
+          <p class="subtitle">ATS-optimized CVs & cover letters from LinkedIn jobs</p>
+        </div>
+      </div>
     </header>
 
     <div id="job-info" class="job-info">
       <div class="loading">Loading job information...</div>
     </div>
+
+    <div id="status-bar" class="status-bar" hidden></div>
 
     <div class="controls">
       <div class="control-group">
@@ -52,7 +59,13 @@
     </div>
 
     <div class="footer">
-      <a href="#" id="options-link">Edit Profile</a>
+      <div class="footer-links">
+        <a href="#" id="options-link">Edit Profile</a>
+        <span class="footer-separator">•</span>
+        <a href="https://www.buymeacoffee.com/your-handle" target="_blank" rel="noopener noreferrer" id="donate-link">
+          Buy me a coffee (optional)
+        </a>
+      </div>
     </div>
   </div>
 

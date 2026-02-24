@@ -1,50 +1,79 @@
 // Background service worker for state management
 
-import type { JobData, CandidateProfile, TailoredResume, GenerationOptions } from '../types/index.js';
+import type {
+  JobData,
+  CandidateProfile,
+  TailoredResume,
+  GenerationOptions,
+  TailoredDocumentSummary,
+  JobExtractionStatus,
+} from '../types/index.js';
 import { callGroqAPI } from './groq-api.js';
-
-function stripCodeFences(s: string): string {
-  let out = s.trim();
-  if (out.startsWith('```')) {
-    out = out.replace(/^```[a-zA-Z0-9_-]*\n?/, '').replace(/```$/m, '').trim();
-  }
-  return out;
-}
-
-function extractFirstJsonObject(text: string): string | null {
-  const s = stripCodeFences(text);
-  const start = s.indexOf('{');
-  if (start === -1) return null;
-  let depth = 0;
-  let inString = false;
-  let escape = false;
-  for (let i = start; i < s.length; i++) {
-    const ch = s[i];
-    if (inString) {
-      if (escape) {
-        escape = false;
-      } else if (ch === '\\') {
-        escape = true;
-      } else if (ch === '"') {
-        inString = false;
-      }
-      continue;
-    }
-    if (ch === '"') {
-      inString = true;
-      continue;
-    }
-    if (ch === '{') depth++;
-    if (ch === '}') {
-      depth--;
-      if (depth === 0) return s.slice(start, i + 1);
-    }
-  }
-  return null;
-}
+import { stripCodeFences, extractFirstJsonObject } from './json-utils.js';
 
 interface StoredJobData extends JobData {
   extractedAt: string;
+}
+
+interface GenerationResultPayload {
+  id: string;
+  ts: number;
+  type: 'resume' | 'cover-letter';
+}
+
+interface BackgroundError {
+  ok: false;
+  code: string;
+  message: string;
+}
+
+interface BackgroundSuccess<T> {
+  ok: true;
+  data: T;
+}
+
+const RECENT_DOCUMENTS_KEY = 'recentDocuments';
+const JOB_EXTRACTION_STATUS_KEY = 'jobExtractionStatus';
+const MAX_RECENT_DOCUMENTS = 10;
+
+function nowIso(): string {
+  return new Date().toISOString();
+}
+
+function buildJobExtractionStatus(
+  state: JobExtractionStatus['state'],
+  message?: string
+): JobExtractionStatus {
+  const status: JobExtractionStatus = {
+    state,
+    lastUpdated: nowIso(),
+  };
+  if (message) {
+    status.message = message;
+  }
+  return status;
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error && typeof error === 'object' && 'message' in error && typeof (error as any).message === 'string') {
+    return (error as any).message as string;
+  }
+  return String(error);
+}
+
+function makeError(code: string, error: unknown): BackgroundError {
+  return {
+    ok: false,
+    code,
+    message: getErrorMessage(error),
+  };
+}
+
+async function appendRecentDocument(entry: TailoredDocumentSummary): Promise<void> {
+  const result = await chrome.storage.local.get(RECENT_DOCUMENTS_KEY);
+  const existing = (result[RECENT_DOCUMENTS_KEY] as TailoredDocumentSummary[] | undefined) ?? [];
+  const updated = [entry, ...existing].slice(0, MAX_RECENT_DOCUMENTS);
+  await chrome.storage.local.set({ [RECENT_DOCUMENTS_KEY]: updated });
 }
 
 // Default candidate profile (for SDET/QA Automation Engineer)
@@ -95,9 +124,16 @@ const DEFAULT_PROFILE: CandidateProfile = {
 
 // Initialize storage with default profile if needed
 chrome.runtime.onInstalled.addListener(async () => {
-  const result = await chrome.storage.local.get('candidateProfile');
+  const result = await chrome.storage.local.get(['candidateProfile', JOB_EXTRACTION_STATUS_KEY]);
+  const updates: Record<string, unknown> = {};
   if (!result.candidateProfile) {
-    await chrome.storage.local.set({ candidateProfile: DEFAULT_PROFILE });
+    updates.candidateProfile = DEFAULT_PROFILE;
+  }
+  if (!result[JOB_EXTRACTION_STATUS_KEY]) {
+    updates[JOB_EXTRACTION_STATUS_KEY] = buildJobExtractionStatus('idle');
+  }
+  if (Object.keys(updates).length > 0) {
+    await chrome.storage.local.set(updates);
   }
 });
 
@@ -106,10 +142,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'JOB_DATA_EXTRACTED') {
     const jobData: StoredJobData = {
       ...message.data,
-      extractedAt: new Date().toISOString(),
+      extractedAt: nowIso(),
     };
-    
-    chrome.storage.local.set({ currentJob: jobData }).then(() => {
+    const status = buildJobExtractionStatus(
+      'ready',
+      `Job detected: ${jobData.title} at ${jobData.company}`
+    );
+
+    chrome.storage.local.set({ currentJob: jobData, [JOB_EXTRACTION_STATUS_KEY]: status }).then(() => {
       console.log('Job data stored:', jobData);
     });
   }
@@ -122,9 +162,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === 'CLEAR_CURRENT_JOB') {
-    chrome.storage.local.remove('currentJob').then(() => {
-      sendResponse({ success: true });
-    });
+    chrome.storage.local
+      .remove('currentJob')
+      .then(() =>
+        chrome.storage.local.set({
+          [JOB_EXTRACTION_STATUS_KEY]: buildJobExtractionStatus('idle'),
+        })
+      )
+      .then(() => {
+        sendResponse({ success: true });
+      });
     return true;
   }
 
@@ -158,29 +205,58 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.type === 'GENERATE_RESUME') {
     handleGenerateResume(message.options)
-      .then(result => sendResponse({ success: true, data: result }))
-      .catch(error => sendResponse({ success: false, error: error.message }));
+      .then(result => {
+        const response: BackgroundSuccess<GenerationResultPayload> = {
+          ok: true,
+          data: result,
+        };
+        sendResponse(response);
+      })
+      .catch(error => {
+        const err = makeError('GENERATE_RESUME_FAILED', error);
+        sendResponse(err);
+      });
     return true;
   }
 
   if (message.type === 'GENERATE_COVER_LETTER') {
     handleGenerateCoverLetter(message.options)
-      .then(result => sendResponse({ success: true, data: result }))
-      .catch(error => sendResponse({ success: false, error: error.message }));
+      .then(result => {
+        const response: BackgroundSuccess<GenerationResultPayload> = {
+          ok: true,
+          data: result,
+        };
+        sendResponse(response);
+      })
+      .catch(error => {
+        const err = makeError('GENERATE_COVER_LETTER_FAILED', error);
+        sendResponse(err);
+      });
     return true;
   }
 
   if (message.type === 'PARSE_RESUME_FROM_TEXT') {
     handleParseResumeFromText(message.resumeText)
-      .then(profile => sendResponse({ success: true, data: profile }))
-      .catch(error => sendResponse({ success: false, error: error?.message ?? String(error) }));
+      .then(profile => {
+        const response: BackgroundSuccess<CandidateProfile> = {
+          ok: true,
+          data: profile,
+        };
+        sendResponse(response);
+      })
+      .catch(error => {
+        const err: BackgroundError = makeError('PARSE_RESUME_FROM_TEXT_FAILED', error);
+        sendResponse(err);
+      });
     return true;
   }
 
   return false;
 });
 
-async function handleGenerateResume(options: GenerationOptions): Promise<TailoredResume> {
+async function handleGenerateResume(options: GenerationOptions): Promise<GenerationResultPayload> {
+  const mode = options.mode ?? 'auto';
+
   const [jobResult, profileResult, apiKeyResult] = await Promise.all([
     chrome.storage.local.get('currentJob'),
     chrome.storage.local.get('candidateProfile'),
@@ -189,20 +265,54 @@ async function handleGenerateResume(options: GenerationOptions): Promise<Tailore
 
   const jobData = jobResult.currentJob as StoredJobData | undefined;
   const profile = profileResult.candidateProfile as CandidateProfile || DEFAULT_PROFILE;
-  const apiKey = apiKeyResult.groqApiKey as string | undefined;
+  const apiKey = (apiKeyResult.groqApiKey as string | undefined)?.trim() || undefined;
 
   if (!jobData) {
     throw new Error('No job data found. Please navigate to a LinkedIn job page.');
   }
+  
+  let usedMode: 'ai' | 'local';
+  let tailoredResume: TailoredResume;
 
-  if (!apiKey) {
-    throw new Error('Groq API key required for ATS-optimized CV. Add your key in Edit Profile → API Configuration (get a free key at console.groq.com).');
+  if (mode === 'local' || !apiKey) {
+    tailoredResume = tailorResume(profile, jobData, options);
+    usedMode = 'local';
+  } else {
+    try {
+      tailoredResume = await tailorResumeWithGroq(profile, jobData, options, apiKey);
+      usedMode = 'ai';
+    } catch (error) {
+      console.error('Groq resume generation failed, falling back to local tailoring:', error);
+      tailoredResume = tailorResume(profile, jobData, options);
+      usedMode = 'local';
+    }
   }
 
-  return await tailorResumeWithGroq(profile, jobData, options, apiKey);
+  const ts = Date.now();
+  const id = `resume-${ts}`;
+  const summary: TailoredDocumentSummary = {
+    id,
+    type: 'resume',
+    jobTitle: jobData.title,
+    jobCompany: jobData.company,
+    generatedAt: nowIso(),
+    mode: usedMode,
+    length: options.length,
+  };
+
+  await chrome.storage.local.set({
+    currentResume: tailoredResume,
+    currentResumeTs: ts,
+    lastDocumentMeta: summary,
+  });
+  await appendRecentDocument(summary);
+
+  return { id, ts, type: 'resume' };
 }
 
-async function handleGenerateCoverLetter(options: GenerationOptions): Promise<string> {
+async function handleGenerateCoverLetter(options: GenerationOptions): Promise<GenerationResultPayload> {
+  const mode = options.mode ?? 'auto';
+
   const [jobResult, profileResult, apiKeyResult] = await Promise.all([
     chrome.storage.local.get('currentJob'),
     chrome.storage.local.get('candidateProfile'),
@@ -211,17 +321,49 @@ async function handleGenerateCoverLetter(options: GenerationOptions): Promise<st
 
   const jobData = jobResult.currentJob as StoredJobData | undefined;
   const profile = profileResult.candidateProfile as CandidateProfile || DEFAULT_PROFILE;
-  const apiKey = apiKeyResult.groqApiKey as string | undefined;
+  const apiKey = (apiKeyResult.groqApiKey as string | undefined)?.trim() || undefined;
 
   if (!jobData) {
     throw new Error('No job data found. Please navigate to a LinkedIn job page.');
   }
+  
+  let usedMode: 'ai' | 'local';
+  let coverLetter: string;
 
-  if (!apiKey) {
-    throw new Error('Groq API key required for AI-generated cover letter. Add your key in Edit Profile → API Configuration (get a free key at console.groq.com).');
+  if (mode === 'local' || !apiKey) {
+    coverLetter = tailorCoverLetter(profile, jobData, options);
+    usedMode = 'local';
+  } else {
+    try {
+      coverLetter = await tailorCoverLetterWithGroq(profile, jobData, options, apiKey);
+      usedMode = 'ai';
+    } catch (error) {
+      console.error('Groq cover letter generation failed, falling back to local tailoring:', error);
+      coverLetter = tailorCoverLetter(profile, jobData, options);
+      usedMode = 'local';
+    }
   }
 
-  return await tailorCoverLetterWithGroq(profile, jobData, options, apiKey);
+  const ts = Date.now();
+  const id = `cover-letter-${ts}`;
+  const summary: TailoredDocumentSummary = {
+    id,
+    type: 'cover-letter',
+    jobTitle: jobData.title,
+    jobCompany: jobData.company,
+    generatedAt: nowIso(),
+    mode: usedMode,
+    length: options.length,
+  };
+
+  await chrome.storage.local.set({
+    currentCoverLetter: coverLetter,
+    currentCoverLetterTs: ts,
+    lastDocumentMeta: summary,
+  });
+  await appendRecentDocument(summary);
+
+  return { id, ts, type: 'cover-letter' };
 }
 
 async function handleParseResumeFromText(resumeText: string): Promise<CandidateProfile> {
@@ -528,7 +670,12 @@ async function tailorResumeWithGroq(
     const profileJson = JSON.stringify(profile, null, 2);
     const jdText = job.description.length > 6000 ? job.description.substring(0, 6000) + '...' : job.description;
 
-    const prompt = `You are an expert ATS (Applicant Tracking System) resume optimizer. Your task is to optimize the candidate's CV using the JOB DESCRIPTION so that when an ATS scans the resume, it finds all necessary keywords and requirements.
+    const lengthInstruction =
+      options.length === '1-page'
+        ? 'Aim for roughly a 1-page resume. Keep bullets concise and prioritize the most relevant 3–5 achievements per role.'
+        : 'You may use up to 2 pages. It is OK to include a few more detailed bullets for key roles.';
+
+    const prompt = `You are an expert ATS (Applicant Tracking System) resume optimizer. Your task is to optimize the candidate's CV using the JOB DESCRIPTION so that when an ATS scans the resume, it finds all necessary keywords and requirements. ${lengthInstruction}
 
 STEP 1 - Analyze the job description: Identify required skills, technologies, qualifications, action verbs, and phrases that ATS systems typically match on.
 
@@ -610,7 +757,12 @@ async function tailorCoverLetterWithGroq(
     const jdText = job.description.length > 4000 ? job.description.substring(0, 4000) + '...' : job.description;
     const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
-    const prompt = `You are an expert cover letter writer. Write a cover letter based ONLY on the JOB DESCRIPTION and the candidate's CV below. The letter must reflect the date it is generated.
+    const lengthInstruction =
+      options.length === '1-page'
+        ? 'Keep the letter to 2–3 short paragraphs that would comfortably fit on a single page.'
+        : 'You may expand to 3–4 paragraphs with a bit more detail, but still keep it focused and easy to scan.';
+
+    const prompt = `You are an expert cover letter writer. Write a cover letter based ONLY on the JOB DESCRIPTION and the candidate's CV below. The letter must reflect the date it is generated. ${lengthInstruction}
 
 TODAY'S DATE (use this as the date of the letter): ${today}
 

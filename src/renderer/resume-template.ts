@@ -111,7 +111,7 @@ function renderProjects(projects: TailoredResume['projects']): string {
             </div>
           </div>
           <div class="resume-summary">${escapeHtml(project.description)}</div>
-          ${project.technologies.length > 0 ? `
+          ${Array.isArray(project.technologies) && project.technologies.length > 0 ? `
             <div class="resume-skills" style="margin-top: 8px;">
               ${project.technologies.map(tech => `<span class="resume-skill">${escapeHtml(tech)}</span>`).join('')}
             </div>
@@ -183,8 +183,10 @@ function formatDate(date: string): string {
   return date;
 }
 
-function escapeHtml(text: string): string {
-  if (!text) return '';
+function escapeHtml(text: unknown): string {
+  if (text === null || text === undefined) return '';
+  const value = typeof text === 'string' ? text : String(text);
+  if (!value) return '';
   const map: { [key: string]: string } = {
     '&': '&amp;',
     '<': '&lt;',
@@ -192,5 +194,5 @@ function escapeHtml(text: string): string {
     '"': '&quot;',
     "'": '&#039;',
   };
-  return text.replace(/[&<>"']/g, (m) => map[m]);
+  return value.replace(/[&<>"']/g, (m) => map[m]);
 }
