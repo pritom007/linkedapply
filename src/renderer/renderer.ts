@@ -6,6 +6,36 @@ const urlParams = new URLSearchParams(window.location.search);
 const documentType = urlParams.get('type') || 'resume';
 const requestedTs = Number(urlParams.get('ts') || '0');
 
+function normalizeKeyAchievements(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+
+  const normalized: string[] = [];
+
+  raw.forEach(item => {
+    if (typeof item === 'string') {
+      const trimmed = item.trim();
+      if (trimmed) normalized.push(trimmed);
+      return;
+    }
+
+    if (item && typeof item === 'object') {
+      const obj = item as Record<string, unknown>;
+      const candidateKeys = ['text', 'achievement', 'description', 'summary', 'bullet', 'value'];
+
+      for (const key of candidateKeys) {
+        const value = obj[key];
+        if (typeof value === 'string') {
+          const trimmed = value.trim();
+          if (trimmed) normalized.push(trimmed);
+          return;
+        }
+      }
+    }
+  });
+
+  return normalized.length > 0 ? normalized : undefined;
+}
+
 /** Normalize stored resume so renderResume never throws (LLM may return skills as object or omit fields). */
 function normalizeResume(data: unknown): TailoredResume {
   const r = data as Record<string, unknown>;
@@ -35,7 +65,7 @@ function normalizeResume(data: unknown): TailoredResume {
     projects: Array.isArray(r?.projects) ? r.projects : undefined,
     certifications: Array.isArray(r?.certifications) ? r.certifications : undefined,
     languages: Array.isArray(r?.languages) ? r.languages : undefined,
-    keyAchievements: Array.isArray(r?.keyAchievements) ? r.keyAchievements : undefined,
+    keyAchievements: normalizeKeyAchievements(r?.keyAchievements),
   };
 }
 
